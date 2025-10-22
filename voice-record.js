@@ -1,5 +1,5 @@
 /*!
- * Zaptos GHL Media Tools - Versão 4.5 (Foco no icon-wrapper + SVG mic fix)
+ * Zaptos GHL Media Tools - Versão 4.5 (SVG mic + posição ao lado do ícone hover:text-red-500)
  * Copyright (c) 2025 Zaptos Company
  * Licensed under the Apache License, Version 2.0
  */
@@ -10,7 +10,7 @@
   const log = (...a) => console.log('[Zaptos v4.5]', ...a);
   const preferFormat = 'mp3';
 
-  // --- Loader do lamejs (Mantido)
+  // --- Loader do lamejs
   const loadLame = () => new Promise((resolve) => {
     if (window.lamejs) return resolve(true);
     const urls = [
@@ -28,17 +28,16 @@
     tryNext();
   });
 
-  // --- Utils UI/GHL (Otimizado)
+  // --- Utils UI/GHL
   const findIconToolbar = () => {
-    const specificToolbar = document.querySelector('#composer-textarea .max-w-full > .items-center > .items-center');
-    if (specificToolbar) return specificToolbar;
-    const fallback1 = document.querySelector('#composer-textarea .items-center .items-center');
-    if (fallback1) return fallback1;
-    return null;
+    // container flex com os ícones
+    const toolbar =
+      document.querySelector('#composer-textarea .flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0') ||
+      document.querySelector('#composer-textarea .max-w-full > .items-center > .items-center') ||
+      document.querySelector('#composer-textarea .items-center .items-center');
+    return toolbar || null;
   };
-  const findReferenceElement = () => {
-    return document.querySelector('#composer-textarea .icon-wrapper .cursor-pointer');
-  };
+
   const findComposer = () => document.getElementById('composer-textarea');
 
   const findFileInput = () => {
@@ -54,27 +53,17 @@
     return null;
   };
 
+  // botão de anexo
   const findAttachmentButton = () => {
     const svgClip = document.querySelector('svg[data-v-4094da08][stroke-linecap="round"][class*="cursor-pointer"]');
     if (svgClip) {
-      log('✅ Ícone SVG do anexo encontrado.');
       const clickableParent = svgClip.closest('.icon-wrapper');
-      if (clickableParent) {
-        log('✅ Elemento pai clicável (.icon-wrapper) encontrado.');
-        return clickableParent;
-      }
+      if (clickableParent) return clickableParent;
     }
-    const ref = findReferenceElement();
-    if (ref && ref.closest('.icon-wrapper')) {
-      log('✅ Botão anexo encontrado via referência (icon-wrapper)');
-      return ref.closest('.icon-wrapper');
-    }
+    // fallback
     let btn = document.querySelector("button[aria-label*='attach' i]") ||
               document.querySelector("button[title*='attach' i]");
-    if (btn) return btn;
-
-    log('❌ Botão de anexar não encontrado');
-    return null;
+    return btn || null;
   };
 
   const performUpload = (input, file) => {
@@ -105,8 +94,7 @@
     if (!input) {
       log('⚠️ Input não encontrado, tentando clicar no botão de anexar...');
       const attachBtn = findAttachmentButton();
-      if (attachBtn) {
-        log('✅ Botão de anexar encontrado, clicando...');
+      if (attachBtn && attachBtn.click) {
         attachBtn.click();
         setTimeout(() => {
           input = findFileInput();
@@ -114,8 +102,8 @@
             log('✅ Input apareceu após clicar no botão!');
             performUpload(input, file);
           } else {
-            log('❌ Input ainda não encontrado após o clique no botão de anexo. O campo deve ser criado dinamicamente.');
-            alert('❌ Campo de upload não encontrado após clique no anexo.\n\nO botão de anexo foi encontrado e clicado, mas o campo de upload não apareceu. Por favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
+            log('❌ Input ainda não encontrado após o clique no botão de anexo.');
+            alert('❌ Campo de upload não encontrado após clique no anexo.\n\nPor favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
           }
         }, 600);
         return true;
@@ -155,12 +143,12 @@
     writeStr(offset, 'WAVE'); offset += 4;
     writeStr(offset, 'fmt '); offset += 4;
     view.setUint32(offset, 16, true); offset += 4;
-    view.setUint16(offset, 1, true); offset += 2;
-    view.setUint16(offset, 1, true); offset += 2; // mono
+    view.setUint16(offset, 1, true); offset += 2;          // PCM
+    view.setUint16(offset, 1, true); offset += 2;          // mono
     view.setUint32(offset, sampleRate, true); offset += 4;
     view.setUint32(offset, byteRate, true); offset += 4;
     view.setUint16(offset, blockAlign, true); offset += 2;
-    view.setUint16(offset, 16, true); offset += 2; // 16-bit
+    view.setUint16(offset, 16, true); offset += 2;         // 16-bit
     writeStr(offset, 'data'); offset += 4;
     view.setUint32(offset, samples.length * bytesPerSample, true); offset += 4;
 
@@ -185,11 +173,11 @@
     return new Blob(chunks, { type: 'audio/mpeg' });
   };
 
-  // --- Botão + Gravação (SVG embutido e normalizado 20x20)
+  // --- Botão + Gravação (SVG embutido e posicionado ao lado do ícone alvo)
   function createRecorderUI() {
     if (document.getElementById('zaptos-rec-btn')) return;
 
-    // ✅ SVG do microfone (usa currentColor e viewBox 24)
+    // SVG do microfone (usa currentColor, viewBox 24)
     const MIC_SVG = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M8 6a4 4 0 1 1 8 0v6a4 4 0 1 1-8 0V6Z" fill="currentColor"/>
@@ -203,7 +191,7 @@
       </svg>
     `;
 
-    // Normaliza qualquer SVG inserido (tamanho e cor)
+    // Normaliza tamanho/cor do SVG
     const normalizeIcon = (root) => {
       const svg = root.querySelector('svg');
       if (!svg) return;
@@ -223,8 +211,17 @@
     };
 
     const toolbar = findIconToolbar();
-    const referenceElement = findReferenceElement();
     if (!toolbar) return;
+
+    // 🎯 ENCAIXE EXATO: após o ícone com classes "w-4 h-4 cursor-pointer text-gray-500 hover:text-red-500"
+    // (escapamos o ":" em hover:text-red-500)
+    const targetSvg = toolbar.querySelector('.icon-wrapper svg.w-4.h-4.cursor-pointer.text-gray-500.hover\\:text-red-500');
+    const targetWrapper = targetSvg ? targetSvg.closest('.icon-wrapper') : null;
+
+    // Criamos um wrapper igual aos demais para manter o layout (gap/altura/etc)
+    const micWrapper = document.createElement('div');
+    micWrapper.className = 'icon-wrapper';
+    micWrapper.setAttribute('data-v-4094da08', ''); // alinha com o markup existente
 
     const btn = document.createElement('button');
     btn.id = 'zaptos-rec-btn';
@@ -233,13 +230,15 @@
     btn.innerHTML = MIC_SVG;
     Object.assign(btn.style, {
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: '36px', height: '36px', padding: '0', margin: '0 4px',
-      borderRadius: '6px', backgroundColor: 'transparent', color: '#64748b',
-      border: 'none', cursor: 'pointer', fontSize: '20px',
-      transition: 'background-color 0.2s, color 0.2s', position: 'relative', flexShrink: '0'
+      width: '28px', height: '28px', padding: '0', margin: '0',        // 28px combina melhor com ícones w-4/h-4
+      backgroundColor: 'transparent', color: '#64748b',
+      border: 'none', cursor: 'pointer',
+      transition: 'background-color 0.2s, color 0.2s', position: 'relative', flexShrink: '0',
+      outline: 'none'
     });
     normalizeIcon(btn);
 
+    // Timer
     const timer = document.createElement('span');
     timer.id = 'zaptos-timer';
     timer.textContent = '00:00';
@@ -251,12 +250,19 @@
     });
     btn.appendChild(timer);
 
-    if (referenceElement && referenceElement.parentNode === toolbar) {
-      toolbar.insertBefore(btn, referenceElement.nextSibling);
+    micWrapper.appendChild(btn);
+
+    // Inserção: exatamente à direita do targetWrapper
+    if (targetWrapper && targetWrapper.parentNode) {
+      targetWrapper.parentNode.insertBefore(micWrapper, targetWrapper.nextSibling);
+      log('✅ Microfone inserido após o ícone alvo (hover:text-red-500).');
     } else {
-      toolbar.appendChild(btn);
+      // fallback: adiciona ao fim da toolbar
+      toolbar.appendChild(micWrapper);
+      log('⚠️ Ícone alvo não encontrado — microfone adicionado ao final da toolbar.');
     }
 
+    // --- Estado e gravação
     let ac = null, source = null, proc = null, stream = null;
     let buffers = [];
     let seconds = 0, tHandle = null, sampleRate = 44100;
@@ -388,12 +394,10 @@
       document.body.appendChild(preview);
     };
 
-    btn.onclick = () => {
-      if (isRecording) { stop(); } else { start(); }
-    };
+    btn.onclick = () => { if (isRecording) { stop(); } else { start(); } };
   }
 
-  // --- Players embutidos (Mantidos)
+  // --- Players embutidos
   function enhanceAttachmentPlayers(root = document) {
     const selectors = [ 'a[href*=".mp3"]', 'a[href*=".wav"]', 'a[href*=".mp4"]', 'a[class*="attachment"]' ];
     const links = Array.from(root.querySelectorAll(selectors.join(', ')));
@@ -419,7 +423,7 @@
     }
   }
 
-  // --- Inicialização (boot)
+  // --- Inicialização
   (async () => {
     const lameOK = await loadLame();
     log(lameOK ? '✅ MP3 encoder carregado' : '⚠️ Encoder MP3 indisponível — fallback para WAV');
