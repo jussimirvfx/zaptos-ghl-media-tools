@@ -1,13 +1,13 @@
 /*!
- * Zaptos GHL Media Tools - Custom Fixed
+ * Zaptos GHL Media Tools - Versão 4.2 (Correção do Anexo)
  * Copyright (c) 2025 Zaptos Company
  * Licensed under the Apache License, Version 2.0
  */
 (function () {
   if (window.__ZAPTOS_GHL_MEDIA_MP3__) return;
-  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.1-custom';
+  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.2-fixed-attachment';
 
-  const log = (...a) => console.log('[Zaptos v4.1 Custom]', ...a);
+  const log = (...a) => console.log('[Zaptos v4.2]', ...a);
   const preferFormat = 'mp3';
 
   // --- Loader do lamejs
@@ -30,47 +30,43 @@
 
   // --- Utils UI/GHL (Otimizado)
   
-  // Encontra a toolbar principal onde o botão deve ser inserido
+  // Encontra a toolbar principal (Container para o botão do microfone)
   const findIconToolbar = () => {
     const specificToolbar = document.querySelector('#composer-textarea .max-w-full > .items-center > .items-center');
-    if (specificToolbar) {
-      log('✅ Toolbar encontrada via seletor específico!');
-      return specificToolbar;
-    }
-    // Fallback 1: Tenta variações do seletor
+    if (specificToolbar) return specificToolbar;
     const fallback1 = document.querySelector('#composer-textarea .items-center .items-center');
-    if (fallback1) {
-      log('✅ Toolbar encontrada via fallback 1');
-      return fallback1;
-    }
-    log('⚠️ Toolbar não encontrada');
+    if (fallback1) return fallback1;
     return null;
   };
   
-  // Encontra o elemento de referência para posicionar o botão ao lado
+  // Encontra o elemento de referência para posicionar o botão do microfone à direita
   const findReferenceElement = () => {
-    const ref = document.querySelector('#composer-textarea .icon-wrapper .cursor-pointer');
-    if (ref) {
-      log('✅ Elemento de referência para posicionamento encontrado!');
-    } else {
-      log('⚠️ Elemento de referência não encontrado.');
-    }
-    return ref;
+    return document.querySelector('#composer-textarea .icon-wrapper .cursor-pointer');
   }
 
-  // Lógica de busca do input de upload - mantida do v3, mas com fallback melhor
+  // Lógica de busca do input de upload
   const findFileInput = () =>
     document.querySelector("input[type='file'][accept*='audio']") ||
     document.querySelector("input[type='file'][name*='file']") ||
     document.querySelector("input[type='file']");
   
-  // Função de busca do botão de anexar (para clique manual)
+  // FUNÇÃO CORRIGIDA PARA ENCONTRAR O BOTÃO DE ANEXO
   const findAttachmentButton = () => {
-    let btn = document.querySelector("button[aria-label*='attach' i]") ||
+    // ESTRATÉGIA 1: Seletor específico fornecido pelo usuário (div .cursor-pointer)
+    let btn = document.querySelector("#composer-textarea .icon-wrapper div .cursor-pointer");
+    if (btn) {
+      log('✅ Botão anexar encontrado: Seletor específico do usuário');
+      return btn;
+    }
+    
+    // Fallback para outros tipos de botões
+    btn = document.querySelector("button[aria-label*='attach' i]") ||
               document.querySelector("button[title*='attach' i]");
     if (btn) return btn;
     const svgClip = document.querySelector("svg[class*='paperclip'], svg[data-icon*='paperclip']");
     if (svgClip) return svgClip.closest('button');
+
+    log('❌ Botão de anexar não encontrado');
     return null;
   };
 
@@ -83,6 +79,17 @@
         // Dispara eventos para a plataforma reconhecer a mudança
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
+        
+        // Tenta também a simulação de input nativo (mais robusto em alguns frameworks)
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          'value'
+        );
+        if (nativeInputValueSetter && nativeInputValueSetter.set) {
+          nativeInputValueSetter.set.call(input, input.value);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
         return true;
     } catch (e) {
         log('Erro no upload:', e);
@@ -110,13 +117,14 @@
             log('✅ Input apareceu após clicar no botão!');
             performUpload(input, file);
           } else {
-            // Este é o erro que levou ao seu pop-up original
-            alert('❌ Campo de upload não encontrado após clique no anexo.\n\nPor favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
+            // Este é o erro se o input NÃO aparecer após o clique no botão
+            alert('❌ Campo de upload não encontrado após clique no anexo.\n\nO botão de anexo foi encontrado, mas o campo de upload não apareceu. Por favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
           }
-        }, 500);
+        }, 500); // 500ms de espera
         return true;
       } else {
-        log('❌ Botão de anexar não encontrado');
+        // Este é o erro que levou ao seu pop-up original
+        log('❌ Botão de anexar não encontrado (Ainda falhou).');
         alert('❌ Campo de upload não encontrado.\n\nPor favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
         return false;
       }
@@ -126,7 +134,7 @@
     return performUpload(input, file);
   };
   
-  // --- Encoders (mantidos do script original)
+  // --- Encoders (mantidos)
   const floatTo16 = (f32) => {
     const i16 = new Int16Array(f32.length);
     for (let i = 0; i < f32.length; i++) {
@@ -182,7 +190,7 @@
     return new Blob(chunks, { type: 'audio/mpeg' });
   };
 
-  // --- UI do Gravador (Lógica de injeção atualizada)
+  // --- UI do Gravador e Lógica de Stop/Preview (Mantidas)
   function createRecorderUI() {
     if (document.getElementById('zaptos-rec-btn')) return;
 
@@ -200,30 +208,17 @@
     btn.title = 'Gravar áudio (MP3/WAV)';
     btn.innerHTML = '🎙️';
     
-    // Estilos do botão para se parecer com os ícones da toolbar GHL
     Object.assign(btn.style, {
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '36px',
-      height: '36px',
-      padding: '0',
-      margin: '0 4px', // Ajuste a margem para separar dos outros ícones
-      borderRadius: '6px',
-      backgroundColor: 'transparent',
-      color: '#64748b', // Cor de ícone padrão (tailwind gray-500/600)
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '20px',
-      transition: 'background-color 0.2s',
-      position: 'relative', // Para o timer
-      flexShrink: '0'
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: '36px', height: '36px', padding: '0', margin: '0 4px',
+      borderRadius: '6px', backgroundColor: 'transparent', color: '#64748b',
+      border: 'none', cursor: 'pointer', fontSize: '20px',
+      transition: 'background-color 0.2s', position: 'relative', flexShrink: '0'
     });
 
-    // Efeitos de mouse (simula o hover dos botões nativos)
     btn.onmouseenter = () => {
       if (btn.innerHTML === '🎙️') {
-        btn.style.backgroundColor = '#f1f5f9'; // gray-100
+        btn.style.backgroundColor = '#f1f5f9';
       }
     };
     btn.onmouseleave = () => {
@@ -244,7 +239,6 @@
 
     btn.appendChild(timer);
 
-    // Lógica de injeção: Tenta inserir DEPOIS do elemento de referência, senão, no final da toolbar.
     if (referenceElement && referenceElement.parentNode === toolbar) {
       toolbar.insertBefore(btn, referenceElement.nextSibling);
       log('✅ Botão inserido ao lado direito do elemento de referência!');
@@ -253,15 +247,9 @@
       log('✅ Botão inserido no final da toolbar (fallback)');
     }
 
-    // Estado da gravação (mantido do script original)
-    let ac = null;
-    let source = null;
-    let proc = null;
-    let stream = null;
+    let ac = null, source = null, proc = null, stream = null;
     let buffers = [];
-    let seconds = 0;
-    let tHandle = null;
-    let sampleRate = 44100;
+    let seconds = 0, tHandle = null, sampleRate = 44100;
 
     const tick = () => {
       seconds++;
@@ -269,26 +257,13 @@
       const s = String(seconds % 60).padStart(2, '0');
       timer.textContent = m + ':' + s;
     };
-
-    const resetTimer = () => {
-      clearInterval(tHandle);
-      seconds = 0;
-      timer.textContent = '00:00';
-      timer.style.display = 'none';
-    };
+    const resetTimer = () => { clearInterval(tHandle); seconds = 0; timer.textContent = '00:00'; timer.style.display = 'none'; };
 
     const start = async () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        alert('❌ Navegador sem suporte.');
-        return;
-      }
+      if (!navigator.mediaDevices?.getUserMedia) { alert('❌ Navegador sem suporte.'); return; }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
         ac = new (window.AudioContext || window.webkitAudioContext)();
         sampleRate = ac.sampleRate;
@@ -299,14 +274,13 @@
           const ch = e.inputBuffer.getChannelData(0);
           buffers.push(new Float32Array(ch));
         };
-        source.connect(proc);
-        proc.connect(ac.destination);
+        source.connect(proc); proc.connect(ac.destination);
 
         tHandle = setInterval(tick, 1000);
         timer.style.display = 'block';
         btn.innerHTML = '⏹️';
-        btn.style.backgroundColor = '#fee2e2'; // Red-100
-        btn.style.color = '#ef4444'; // Red-500
+        btn.style.backgroundColor = '#fee2e2';
+        btn.style.color = '#ef4444';
         log('🎙️ Gravando...');
       } catch (e) {
         log('❌ Erro microfone:', e);
@@ -325,41 +299,28 @@
       btn.style.backgroundColor = 'transparent';
       btn.style.color = '#64748b';
 
-      let total = 0;
-      buffers.forEach(b => total += b.length);
+      let total = 0; buffers.forEach(b => total += b.length);
       const merged = new Float32Array(total);
-      let off = 0;
-      for (const b of buffers) {
-        merged.set(b, off);
-        off += b.length;
-      }
+      let off = 0; for (const b of buffers) { merged.set(b, off); off += b.length; }
       buffers = [];
 
-      let blob;
-      let fileName;
-      
+      let blob, fileName;
       try {
         if (preferFormat === 'mp3' && window.lamejs) {
           blob = encodeMP3(merged, sampleRate, 128);
           fileName = 'gravacao.mp3';
-          log('✅ MP3 codificado');
-        } else {
-          throw new Error('lamejs indisponível');
-        }
+        } else { throw new Error('lamejs indisponível'); }
       } catch (err) {
         blob = encodeWAV(merged, sampleRate);
         fileName = 'gravacao.wav';
-        log('⚠️ WAV fallback');
       }
 
       const file = new File([blob], fileName, { type: blob.type });
       showPreview(file);
     };
 
-    // Preview UI (Otimizada e com melhor posicionamento)
     const showPreview = (file) => {
-      const old = document.getElementById('zaptos-preview');
-      if (old) old.remove();
+      const old = document.getElementById('zaptos-preview'); if (old) old.remove();
 
       const preview = document.createElement('div');
       preview.id = 'zaptos-preview';
@@ -372,18 +333,12 @@
 
       const title = document.createElement('div');
       title.textContent = '🎙️ Gravação Concluída';
-      Object.assign(title.style, {
-        fontSize: '16px', fontWeight: '600', color: '#1e293b', marginBottom: '4px'
-      });
+      Object.assign(title.style, { fontSize: '16px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' });
 
       const audio = document.createElement('audio');
-      audio.controls = true;
-      audio.src = URL.createObjectURL(file);
-      audio.style.width = '100%';
+      audio.controls = true; audio.src = URL.createObjectURL(file); audio.style.width = '100%';
 
-      const btnContainer = document.createElement('div');
-      btnContainer.style.display = 'flex';
-      btnContainer.style.gap = '10px';
+      const btnContainer = document.createElement('div'); btnContainer.style.display = 'flex'; btnContainer.style.gap = '10px';
 
       const sendBtn = document.createElement('button');
       sendBtn.textContent = '✅ Enviar';
@@ -392,9 +347,7 @@
         border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px'
       });
       sendBtn.onclick = () => {
-        if (simulateUpload(file)) {
-          log('✅ Enviado!');
-        }
+        if (simulateUpload(file)) { log('✅ Enviado!'); }
         URL.revokeObjectURL(audio.src);
         preview.remove();
       };
@@ -416,37 +369,22 @@
     };
 
     btn.onclick = () => {
-      if (btn.innerHTML === '⏹️') {
-        stop();
-      } else {
-        start();
-      }
+      if (btn.innerHTML === '⏹️') { stop(); } else { start(); }
     };
   }
 
-  // --- Players embutidos (mantidos do script original)
+  // --- Players embutidos (Mantidos)
   function enhanceAttachmentPlayers(root = document) {
-    // Usando seletores mais robustos, baseados na lógica do v4.1, se necessário
-    const selectors = [
-      'a[href*=".mp3"]',
-      'a[href*=".wav"]',
-      'a[href*=".mp4"]',
-      'a[class*="attachment"]' // Mantendo o seletor genérico para GHL
-    ];
-
+    const selectors = [ 'a[href*=".mp3"]', 'a[href*=".wav"]', 'a[href*=".mp4"]', 'a[class*="attachment"]' ];
     const links = Array.from(root.querySelectorAll(selectors.join(', ')));
     
     for (const link of links) {
       if (!link || link.dataset.zaptosEnhanced) continue;
-      
       const href = link.getAttribute('href') || link.textContent || '';
       if (!href) continue;
-      
       link.dataset.zaptosEnhanced = 'true';
 
-      let url = href;
-      try { url = new URL(href, location.href).href; } catch (e) { continue; }
-
+      let url = href; try { url = new URL(href, location.href).href; } catch (e) { continue; }
       const ext = url.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase();
       if (!ext) continue;
 
@@ -473,7 +411,6 @@
     tryInject();
     tryPlayers();
 
-    // Tenta injetar novamente (necessário em aplicações SPA como GHL)
     setTimeout(tryInject, 500);
     setTimeout(tryInject, 3000);
 
@@ -482,11 +419,9 @@
       for (const m of muts) {
         if (m.type === 'childList' && m.addedNodes?.length) {
           uiCheckNeeded = true;
-          // Verifica players nos novos nós
           m.addedNodes.forEach(n => { if (n.querySelectorAll) tryPlayers(n); });
         }
       }
-      // Re-injeta se o container do composer tiver sido recriado
       if (uiCheckNeeded && !document.getElementById('zaptos-rec-btn')) {
          setTimeout(tryInject, 100);
       }
@@ -494,6 +429,6 @@
 
     mo.observe(document.documentElement, { childList: true, subtree: true });
 
-    log('🎯 Zaptos v4.1 Custom ativo!');
+    log('🎯 Zaptos v4.2 ativo!');
   })();
 })();
