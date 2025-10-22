@@ -1,16 +1,16 @@
 /*!
- * Zaptos GHL Media Tools - Versão 4.2 (Correção do Anexo)
+ * Zaptos GHL Media Tools - Versão 4.5 (Foco no icon-wrapper)
  * Copyright (c) 2025 Zaptos Company
  * Licensed under the Apache License, Version 2.0
  */
 (function () {
   if (window.__ZAPTOS_GHL_MEDIA_MP3__) return;
-  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.2-fixed-attachment';
+  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.5-icon-wrapper-fix';
 
-  const log = (...a) => console.log('[Zaptos v4.2]', ...a);
+  const log = (...a) => console.log('[Zaptos v4.5]', ...a);
   const preferFormat = 'mp3';
 
-  // --- Loader do lamejs
+  // --- Loader do lamejs (Mantido)
   const loadLame = () => new Promise((resolve) => {
     if (window.lamejs) return resolve(true);
     const urls = [
@@ -39,32 +39,56 @@
     return null;
   };
   
-  // Encontra o elemento de referência para posicionar o botão do microfone à direita
+  // Encontra o elemento de referência para posicionar o botão do microfone
   const findReferenceElement = () => {
+    // Este seletor (o container clicável do anexo) é usado para posicionar o microfone ao lado.
     return document.querySelector('#composer-textarea .icon-wrapper .cursor-pointer');
   }
 
+  const findComposer = () => document.getElementById('composer-textarea'); 
+
   // Lógica de busca do input de upload
-  const findFileInput = () =>
-    document.querySelector("input[type='file'][accept*='audio']") ||
-    document.querySelector("input[type='file'][name*='file']") ||
-    document.querySelector("input[type='file']");
+  const findFileInput = () => {
+    const composer = findComposer();
+    let input = document.querySelector("input[type='file'][accept*='audio']");
+    if (input) return input;
+    input = document.querySelector("input[type='file']");
+    if (input) return input;
+    if (composer) {
+        input = composer.querySelector("input[type='file']");
+        if (input) return input;
+    }
+    return null;
+  };
   
   // FUNÇÃO CORRIGIDA PARA ENCONTRAR O BOTÃO DE ANEXO
   const findAttachmentButton = () => {
-    // ESTRATÉGIA 1: Seletor específico fornecido pelo usuário (div .cursor-pointer)
-    let btn = document.querySelector("#composer-textarea .icon-wrapper div .cursor-pointer");
-    if (btn) {
-      log('✅ Botão anexar encontrado: Seletor específico do usuário');
-      return btn;
+    // ESTRATÉGIA 1: Busca o SVG do clipe
+    const svgClip = document.querySelector('svg[data-v-4094da08][stroke-linecap="round"][class*="cursor-pointer"]');
+    
+    if (svgClip) {
+      log('✅ Ícone SVG do anexo encontrado.');
+      
+      // Procura o PARENT mais próximo com a classe 'icon-wrapper' (o contêiner clicável real)
+      const clickableParent = svgClip.closest('.icon-wrapper');
+      
+      if (clickableParent) {
+          log('✅ Elemento pai clicável (.icon-wrapper) encontrado.');
+          return clickableParent;
+      }
     }
     
-    // Fallback para outros tipos de botões
-    btn = document.querySelector("button[aria-label*='attach' i]") ||
+    // Fallback: Tenta encontrar o container do anexo (o elemento de referência do microfone é o mesmo!)
+    const ref = findReferenceElement();
+    if (ref && ref.closest('.icon-wrapper')) {
+        log('✅ Botão anexo encontrado via referência (icon-wrapper)');
+        return ref.closest('.icon-wrapper');
+    }
+
+    // Fallback final
+    let btn = document.querySelector("button[aria-label*='attach' i]") ||
               document.querySelector("button[title*='attach' i]");
     if (btn) return btn;
-    const svgClip = document.querySelector("svg[class*='paperclip'], svg[data-icon*='paperclip']");
-    if (svgClip) return svgClip.closest('button');
 
     log('❌ Botão de anexar não encontrado');
     return null;
@@ -76,11 +100,9 @@
         dt.items.add(file);
         input.files = dt.files;
         
-        // Dispara eventos para a plataforma reconhecer a mudança
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
         
-        // Tenta também a simulação de input nativo (mais robusto em alguns frameworks)
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
           window.HTMLInputElement.prototype,
           'value'
@@ -108,6 +130,7 @@
       
       if (attachBtn) {
         log('✅ Botão de anexar encontrado, clicando...');
+        // Tenta disparar o evento de click
         attachBtn.click();
         
         // Aguarda o input aparecer após clicar
@@ -117,14 +140,15 @@
             log('✅ Input apareceu após clicar no botão!');
             performUpload(input, file);
           } else {
-            // Este é o erro se o input NÃO aparecer após o clique no botão
-            alert('❌ Campo de upload não encontrado após clique no anexo.\n\nO botão de anexo foi encontrado, mas o campo de upload não apareceu. Por favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
+            // Log 2: O botão foi clicado, mas o input não apareceu
+            log('❌ Input ainda não encontrado após o clique no botão de anexo. O campo deve ser criado dinamicamente.');
+            alert('❌ Campo de upload não encontrado após clique no anexo.\n\nO botão de anexo foi encontrado e clicado, mas o campo de upload não apareceu. Por favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
           }
-        }, 500); // 500ms de espera
+        }, 600); 
         return true;
       } else {
-        // Este é o erro que levou ao seu pop-up original
-        log('❌ Botão de anexar não encontrado (Ainda falhou).');
+        // Log 1: O botão de anexo NÃO foi encontrado
+        log('❌ Botão de anexar não encontrado.');
         alert('❌ Campo de upload não encontrado.\n\nPor favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
         return false;
       }
@@ -134,7 +158,7 @@
     return performUpload(input, file);
   };
   
-  // --- Encoders (mantidos)
+  // --- Encoders e UI do Gravador (Mantidos)
   const floatTo16 = (f32) => {
     const i16 = new Int16Array(f32.length);
     for (let i = 0; i < f32.length; i++) {
@@ -190,17 +214,13 @@
     return new Blob(chunks, { type: 'audio/mpeg' });
   };
 
-  // --- UI do Gravador e Lógica de Stop/Preview (Mantidas)
   function createRecorderUI() {
     if (document.getElementById('zaptos-rec-btn')) return;
 
     const toolbar = findIconToolbar();
     const referenceElement = findReferenceElement();
     
-    if (!toolbar) {
-      log('⚠️ Toolbar não encontrada, UI Recorder não injetada.');
-      return;
-    }
+    if (!toolbar) return;
 
     const btn = document.createElement('button');
     btn.id = 'zaptos-rec-btn';
@@ -217,14 +237,10 @@
     });
 
     btn.onmouseenter = () => {
-      if (btn.innerHTML === '🎙️') {
-        btn.style.backgroundColor = '#f1f5f9';
-      }
+      if (btn.innerHTML === '🎙️') { btn.style.backgroundColor = '#f1f5f9'; }
     };
     btn.onmouseleave = () => {
-      if (btn.innerHTML === '🎙️') {
-        btn.style.backgroundColor = 'transparent';
-      }
+      if (btn.innerHTML === '🎙️') { btn.style.backgroundColor = 'transparent'; }
     };
 
     const timer = document.createElement('span');
@@ -241,10 +257,8 @@
 
     if (referenceElement && referenceElement.parentNode === toolbar) {
       toolbar.insertBefore(btn, referenceElement.nextSibling);
-      log('✅ Botão inserido ao lado direito do elemento de referência!');
     } else {
       toolbar.appendChild(btn);
-      log('✅ Botão inserido no final da toolbar (fallback)');
     }
 
     let ac = null, source = null, proc = null, stream = null;
@@ -281,7 +295,6 @@
         btn.innerHTML = '⏹️';
         btn.style.backgroundColor = '#fee2e2';
         btn.style.color = '#ef4444';
-        log('🎙️ Gravando...');
       } catch (e) {
         log('❌ Erro microfone:', e);
         alert('⚠️ Permita acesso ao microfone.');
@@ -289,10 +302,10 @@
     };
 
     const stop = async () => {
-      try { if (source) source.disconnect(); } catch (e) { log('Erro ao parar source:', e); }
-      try { if (proc) proc.disconnect(); } catch (e) { log('Erro ao parar proc:', e); }
-      try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (e) { log('Erro ao parar stream:', e); }
-      try { if (ac) ac.close(); } catch (e) { log('Erro ao parar ac:', e); }
+      try { if (source) source.disconnect(); } catch {}
+      try { if (proc) proc.disconnect(); } catch {}
+      try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
+      try { if (ac) ac.close(); } catch {}
 
       resetTimer();
       btn.innerHTML = '🎙️';
@@ -429,6 +442,6 @@
 
     mo.observe(document.documentElement, { childList: true, subtree: true });
 
-    log('🎯 Zaptos v4.2 ativo!');
+    log('🎯 Zaptos v4.5 ativo!');
   })();
 })();
