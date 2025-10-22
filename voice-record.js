@@ -32,54 +32,56 @@
     tryNext();
   });
 
-  // --- Encontrar toolbar (corrigido)
+  // --- Encontrar toolbar (seletor específico)
   const findIconToolbar = () => {
-    // Estratégia 1: Procura textarea e busca container de botões próximo
-    const textareas = document.querySelectorAll('textarea');
-    for (const textarea of textareas) {
-      const container = textarea.closest('div');
-      if (container) {
-        // Procura irmãos ou pais próximos com botões
-        const parent = container.parentElement;
-        if (parent) {
-          const toolbars = parent.querySelectorAll('div');
-          for (const toolbar of toolbars) {
-            const buttons = toolbar.querySelectorAll('button');
-            const svgs = toolbar.querySelectorAll('svg');
-            if (buttons.length >= 2 && svgs.length >= 2) {
-              log('✅ Toolbar encontrada via textarea');
-              return toolbar;
-            }
-          }
-        }
-      }
+    // Estratégia PRINCIPAL: Seletor específico fornecido
+    const specificToolbar = document.querySelector('#composer-textarea .max-w-full > .items-center > .items-center');
+    if (specificToolbar) {
+      log('✅ Toolbar encontrada via seletor específico!');
+      return specificToolbar;
     }
 
-    // Estratégia 2: Procura por containers na parte inferior da tela
-    const allDivs = document.querySelectorAll('div');
-    for (const div of allDivs) {
-      const buttons = div.querySelectorAll(':scope > button');
-      const svgs = div.querySelectorAll(':scope > button > svg');
-      if (buttons.length >= 3 && svgs.length >= 2) {
-        const rect = div.getBoundingClientRect();
-        if (rect.bottom > window.innerHeight - 200) {
-          log('✅ Toolbar encontrada via posição');
+    // Fallback 1: Tenta variações do seletor
+    const fallback1 = document.querySelector('#composer-textarea .items-center .items-center');
+    if (fallback1) {
+      log('✅ Toolbar encontrada via fallback 1');
+      return fallback1;
+    }
+
+    // Fallback 2: Busca por composer-textarea e desce na árvore
+    const composerTextarea = document.getElementById('composer-textarea');
+    if (composerTextarea) {
+      const toolbar = composerTextarea.querySelector('.items-center .items-center');
+      if (toolbar) {
+        log('✅ Toolbar encontrada via composer-textarea');
+        return toolbar;
+      }
+      
+      // Tenta pegar qualquer div com items-center que tenha botões
+      const divs = composerTextarea.querySelectorAll('div.items-center');
+      for (const div of divs) {
+        const buttons = div.querySelectorAll('button');
+        if (buttons.length >= 2) {
+          log('✅ Toolbar encontrada via botões em composer-textarea');
           return div;
         }
       }
     }
 
-    // Estratégia 3: Busca por botão de emoji
-    const emojiBtn = document.querySelector('button[aria-label*="emoji" i]');
-    if (emojiBtn) {
-      const toolbar = emojiBtn.parentElement;
-      if (toolbar && toolbar.querySelectorAll('button').length >= 2) {
-        log('✅ Toolbar encontrada via emoji');
-        return toolbar;
+    // Fallback 3: Busca por textarea e sobe/desce
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      const wrapper = textarea.closest('div[id*="composer"]');
+      if (wrapper) {
+        const toolbar = wrapper.querySelector('.items-center .items-center');
+        if (toolbar) {
+          log('✅ Toolbar encontrada via textarea wrapper');
+          return toolbar;
+        }
       }
     }
 
-    log('⚠️ Toolbar não encontrada');
+    log('⚠️ Toolbar não encontrada - seletores testados não funcionaram');
     return null;
   };
 
