@@ -86,13 +86,87 @@
   };
 
   const findFileInput = () => {
-    return document.querySelector("input[type='file'][accept*='audio']") ||
-           document.querySelector("input[type='file']");
+    // Estratégia 1: Input de arquivo específico para áudio
+    let input = document.querySelector("input[type='file'][accept*='audio']");
+    if (input) {
+      log('✅ Input encontrado: audio específico');
+      return input;
+    }
+
+    // Estratégia 2: Qualquer input de arquivo
+    input = document.querySelector("input[type='file']");
+    if (input) {
+      log('✅ Input encontrado: file genérico');
+      return input;
+    }
+
+    // Estratégia 3: Input dentro do composer
+    const composer = document.getElementById('composer-textarea');
+    if (composer) {
+      input = composer.querySelector("input[type='file']");
+      if (input) {
+        log('✅ Input encontrado: dentro do composer');
+        return input;
+      }
+    }
+
+    // Estratégia 4: Busca em toda árvore DOM por inputs ocultos
+    const allInputs = document.querySelectorAll("input[type='file']");
+    if (allInputs.length > 0) {
+      log('✅ Input encontrado: último input da página');
+      return allInputs[allInputs.length - 1];
+    }
+
+    log('❌ Nenhum input de arquivo encontrado');
+    return null;
   };
 
   const findAttachmentButton = () => {
-    return document.querySelector("button[aria-label*='attach' i]") ||
-           document.querySelector("button[title*='attach' i]");
+    // Estratégia 1: Botão com aria-label
+    let btn = document.querySelector("button[aria-label*='attach' i]");
+    if (btn) {
+      log('✅ Botão anexar encontrado: aria-label');
+      return btn;
+    }
+
+    // Estratégia 2: Botão com title
+    btn = document.querySelector("button[title*='attach' i]");
+    if (btn) {
+      log('✅ Botão anexar encontrado: title');
+      return btn;
+    }
+
+    // Estratégia 3: SVG de clipe de papel
+    const svgClip = document.querySelector("svg[class*='paperclip'], svg[data-icon*='paperclip']");
+    if (svgClip) {
+      btn = svgClip.closest('button');
+      if (btn) {
+        log('✅ Botão anexar encontrado: ícone paperclip');
+        return btn;
+      }
+    }
+
+    // Estratégia 4: Procura botão próximo ao composer que abre file input
+    const composer = document.getElementById('composer-textarea');
+    if (composer) {
+      const buttons = composer.querySelectorAll('button');
+      for (const button of buttons) {
+        // Verifica se o botão tem ícone de anexo
+        const svg = button.querySelector('svg');
+        if (svg) {
+          const classes = svg.getAttribute('class') || '';
+          const dataIcon = svg.getAttribute('data-icon') || '';
+          if (classes.includes('clip') || classes.includes('attach') || 
+              dataIcon.includes('clip') || dataIcon.includes('attach')) {
+            log('✅ Botão anexar encontrado: próximo ao composer');
+            return button;
+          }
+        }
+      }
+    }
+
+    log('❌ Botão de anexar não encontrado');
+    return null;
   };
 
   const performUpload = (input, file) => {
@@ -121,27 +195,38 @@
   };
 
   const simulateUpload = (file) => {
+    log('🔍 Tentando fazer upload do arquivo:', file.name);
+    
     let input = findFileInput();
     
     if (!input) {
+      log('⚠️ Input não encontrado, tentando clicar no botão de anexar...');
       const attachBtn = findAttachmentButton();
+      
       if (attachBtn) {
+        log('✅ Botão de anexar encontrado, clicando...');
         attachBtn.click();
+        
+        // Aguarda o input aparecer após clicar
         setTimeout(() => {
           input = findFileInput();
           if (input) {
+            log('✅ Input apareceu após clicar no botão!');
             performUpload(input, file);
           } else {
-            alert('⚠️ Campo de upload não encontrado.');
+            log('❌ Input ainda não encontrado após clicar');
+            alert('❌ Campo de upload não encontrado.\n\nTente:\n1. Clicar manualmente no ícone de anexo\n2. Verificar se há permissões bloqueadas');
           }
-        }, 300);
+        }, 500); // Aumentado para 500ms
         return true;
       } else {
-        alert('❌ Campo de upload não encontrado.');
+        log('❌ Botão de anexar não encontrado');
+        alert('❌ Campo de upload não encontrado.\n\nPor favor, clique manualmente no ícone de anexo (📎) e tente novamente.');
         return false;
       }
     }
     
+    log('✅ Input encontrado diretamente, fazendo upload...');
     return performUpload(input, file);
   };
 
@@ -222,7 +307,16 @@
       return;
     }
 
-    log('✅ Toolbar encontrada! Injetando botão...');
+    log('✅ Toolbar encontrada! Procurando posição específica...');
+
+    // Encontra o elemento de referência (.icon-wrapper .cursor-pointer)
+    const referenceElement = document.querySelector('#composer-textarea .icon-wrapper .cursor-pointer');
+    
+    if (!referenceElement) {
+      log('⚠️ Elemento de referência não encontrado, inserindo no final da toolbar');
+    } else {
+      log('✅ Elemento de referência encontrado!');
+    }
 
     const btn = document.createElement('button');
     btn.id = 'zaptos-rec-btn';
@@ -275,12 +369,27 @@
       borderRadius: '4px',
       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
       display: 'none',
-      whiteSpace: 'nowrap'
+      whiteSpace: 'nowrap',
+      zIndex: '1'
     });
 
     btn.style.position = 'relative';
     btn.appendChild(timer);
-    toolbar.appendChild(btn);
+
+    // Insere o botão ao lado direito do elemento de referência
+    if (referenceElement) {
+      // Insere logo após o elemento de referência
+      if (referenceElement.nextSibling) {
+        toolbar.insertBefore(btn, referenceElement.nextSibling);
+      } else {
+        toolbar.appendChild(btn);
+      }
+      log('✅ Botão inserido ao lado direito do elemento de referência!');
+    } else {
+      // Fallback: insere no final da toolbar
+      toolbar.appendChild(btn);
+      log('✅ Botão inserido no final da toolbar (fallback)');
+    }
 
     log('✅ Botão injetado!');
 
