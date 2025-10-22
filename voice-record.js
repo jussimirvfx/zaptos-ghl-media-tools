@@ -1,5 +1,5 @@
 /*!
- * Zaptos GHL Media Tools - Versão 4.5 (SVG mic + posição ao lado do ícone hover:text-red-500)
+ * Zaptos GHL Media Tools - Versão 4.5 (SVG mic + posição ao lado do ícone alvo + CSS extra)
  * Copyright (c) 2025 Zaptos Company
  * Licensed under the Apache License, Version 2.0
  */
@@ -27,6 +27,44 @@
     };
     tryNext();
   });
+
+  // --- CSS extra solicitado
+  const injectCustomCSS = () => {
+    const css = `
+/* Svg */
+#zaptos-rec-btn svg{
+  position:relative;
+  top:0px;
+  left:255px;
+}
+
+/* Justify between */
+#composer-textarea .items-center .justify-between{
+  position:relative;
+  top:0px;
+  left:12px;
+}
+
+/* Justify center */
+#composer-textarea .max-w-full > .items-center > .justify-center{
+  transform:translatex(0px) translatey(0px);
+}
+
+/* Zaptos preview */
+#zaptos-preview{
+  top:400px;
+  left:1280px;
+  right:930px;
+  bottom:400px !important;
+  height:185px;
+  position:absolute !important;
+  transform:translatex(7px) translatey(369px) !important;
+}`;
+    const style = document.createElement('style');
+    style.id = 'zaptos-custom-style';
+    style.textContent = css;
+    document.head.appendChild(style);
+  };
 
   // --- Utils UI/GHL
   const findIconToolbar = () => {
@@ -214,14 +252,13 @@
     if (!toolbar) return;
 
     // 🎯 ENCAIXE EXATO: após o ícone com classes "w-4 h-4 cursor-pointer text-gray-500 hover:text-red-500"
-    // (escapamos o ":" em hover:text-red-500)
     const targetSvg = toolbar.querySelector('.icon-wrapper svg.w-4.h-4.cursor-pointer.text-gray-500.hover\\:text-red-500');
     const targetWrapper = targetSvg ? targetSvg.closest('.icon-wrapper') : null;
 
-    // Criamos um wrapper igual aos demais para manter o layout (gap/altura/etc)
+    // Wrapper igual aos demais
     const micWrapper = document.createElement('div');
     micWrapper.className = 'icon-wrapper';
-    micWrapper.setAttribute('data-v-4094da08', ''); // alinha com o markup existente
+    micWrapper.setAttribute('data-v-4094da08', '');
 
     const btn = document.createElement('button');
     btn.id = 'zaptos-rec-btn';
@@ -230,7 +267,7 @@
     btn.innerHTML = MIC_SVG;
     Object.assign(btn.style, {
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: '28px', height: '28px', padding: '0', margin: '0',        // 28px combina melhor com ícones w-4/h-4
+      width: '28px', height: '28px', padding: '0', margin: '0',
       backgroundColor: 'transparent', color: '#64748b',
       border: 'none', cursor: 'pointer',
       transition: 'background-color 0.2s, color 0.2s', position: 'relative', flexShrink: '0',
@@ -425,6 +462,7 @@
 
   // --- Inicialização
   (async () => {
+    injectCustomCSS(); // aplica o CSS adicional
     const lameOK = await loadLame();
     log(lameOK ? '✅ MP3 encoder carregado' : '⚠️ Encoder MP3 indisponível — fallback para WAV');
 
