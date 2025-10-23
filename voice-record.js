@@ -40,9 +40,12 @@
 
 /* Justify between */
 #composer-textarea .items-center .justify-between{
-  position:relative;
-  top:0px;
-  left:12px;
+  transform: translatex(-12px);
+}
+
+/* Zaptos rec */
+#zaptos-rec-btn{
+  transform: translatex(-256px);
 }
 
 /* Justify center */
