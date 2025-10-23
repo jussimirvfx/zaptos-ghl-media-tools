@@ -214,6 +214,12 @@
   // --- Botão + Gravação (SVG embutido e posicionado ao lado do ícone alvo)
   function createRecorderUI() {
     if (document.getElementById('zaptos-rec-btn')) return;
+    
+    // Verifica se o composer-textarea está ativo/visível
+    const composer = findComposer();
+    if (!composer || composer.style.display === 'none' || composer.offsetParent === null) {
+      return; // Não cria o botão se o composer não estiver ativo
+    }
 
     // SVG do microfone (usa currentColor, viewBox 24)
     const MIC_SVG = `
@@ -483,7 +489,18 @@
           m.addedNodes.forEach(n => { if (n.querySelectorAll) tryPlayers(n); });
         }
       }
-      if (uiCheckNeeded && !document.getElementById('zaptos-rec-btn')) {
+      
+      // Verifica se o composer ainda está ativo
+      const composer = findComposer();
+      const recBtn = document.getElementById('zaptos-rec-btn');
+      
+      if (recBtn && (!composer || composer.style.display === 'none' || composer.offsetParent === null)) {
+        // Remove o botão se o composer não estiver ativo
+        recBtn.closest('.icon-wrapper')?.remove();
+        log('🗑️ Botão removido - composer não ativo');
+      }
+      
+      if (uiCheckNeeded && !recBtn) {
         setTimeout(tryInject, 100);
       }
     });
