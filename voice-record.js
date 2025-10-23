@@ -39,8 +39,11 @@
 }
 
 /* Justify between */
-#composer-textarea .items-center .justify-between{
-  transform: translatex(-12px);
+#composer-textarea div .justify-between{
+  transform: translatey(1px) !important;
+  position:static;
+  top:-3px;
+  padding-left:0px;
 }
 
 /* Zaptos rec */
