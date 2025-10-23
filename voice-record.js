@@ -31,8 +31,8 @@
   // --- CSS extra solicitado
   const injectCustomCSS = () => {
     const css = `
-/* Svg */
-#zaptos-rec-btn svg{
+/* Botão de gravação - posicionado na mesma posição do SVG do microfone */
+#zaptos-rec-btn{
   position:relative;
   top:0px;
   left:255px;
