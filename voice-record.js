@@ -214,11 +214,11 @@
   // --- Botão + Gravação (SVG embutido e posicionado ao lado do ícone alvo)
   function createRecorderUI() {
     if (document.getElementById('zaptos-rec-btn')) return;
-    
-    // Verifica se o composer-textarea está ativo/visível
-    const composer = findComposer();
-    if (!composer || composer.style.display === 'none' || composer.offsetParent === null) {
-      return; // Não cria o botão se o composer não estiver ativo
+
+    // Verifica se o container específico está ativo/visível
+    const targetContainer = document.querySelector('div[data-v-4094da08].flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0');
+    if (!targetContainer || targetContainer.style.display === 'none' || targetContainer.offsetParent === null) {
+      return; // Não cria o botão se o container não estiver ativo
     }
 
     // SVG do microfone (usa currentColor, viewBox 24)
@@ -490,14 +490,14 @@
         }
       }
       
-      // Verifica se o composer ainda está ativo
-      const composer = findComposer();
+      // Verifica se o container ainda está ativo
+      const targetContainer = document.querySelector('div[data-v-4094da08].flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0');
       const recBtn = document.getElementById('zaptos-rec-btn');
       
-      if (recBtn && (!composer || composer.style.display === 'none' || composer.offsetParent === null)) {
-        // Remove o botão se o composer não estiver ativo
+      if (recBtn && (!targetContainer || targetContainer.style.display === 'none' || targetContainer.offsetParent === null)) {
+        // Remove o botão se o container não estiver ativo
         recBtn.closest('.icon-wrapper')?.remove();
-        log('🗑️ Botão removido - composer não ativo');
+        log('🗑️ Botão removido - container não ativo');
       }
       
       if (uiCheckNeeded && !recBtn) {
