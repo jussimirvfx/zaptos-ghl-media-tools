@@ -58,13 +58,22 @@
 
 /* Zaptos preview */
 #zaptos-preview{
-  top:400px;
-  left:1280px;
-  right:930px;
-  bottom:400px !important;
-  height:185px;
-  position:absolute !important;
-  transform:translatex(7px) translatey(369px) !important;
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 350px !important;
+  height: auto !important;
+  min-width: 350px !important;
+  max-width: 350px !important;
+  z-index: 10000 !important;
+  background: #fff !important;
+  padding: 20px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
 }`;
     const style = document.createElement('style');
     style.id = 'zaptos-custom-style';
