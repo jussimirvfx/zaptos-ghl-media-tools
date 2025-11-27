@@ -1,13 +1,13 @@
 /*!
- * Zaptos GHL Media Tools - Versão 4.5 (SVG mic + posição ao lado do ícone alvo + CSS extra)
+ * Zaptos GHL Media Tools - Versão 4.6 (Melhorias na detecção de toolbar e seletores mais robustos)
  * Copyright (c) 2025 Zaptos Company
  * Licensed under the Apache License, Version 2.0
  */
 (function () {
   if (window.__ZAPTOS_GHL_MEDIA_MP3__) return;
-  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.5-icon-wrapper-fix';
+  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.6-robust-selectors';
 
-  const log = (...a) => console.log('[Zaptos v4.5]', ...a);
+  const log = (...a) => console.log('[Zaptos v4.6]', ...a);
   const preferFormat = 'mp3';
 
   // --- Loader do lamejs
@@ -83,15 +83,75 @@
 
   // --- Utils UI/GHL
   const findIconToolbar = () => {
-    // container flex com os ícones
-    const toolbar =
-      document.querySelector('#composer-textarea .flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0') ||
-      document.querySelector('#composer-textarea .max-w-full > .items-center > .items-center') ||
-      document.querySelector('#composer-textarea .items-center .items-center');
-    return toolbar || null;
+    const composer = findComposer();
+    if (!composer) {
+      log('⚠️ Composer não encontrado');
+      return null;
+    }
+    
+    // Múltiplos seletores para encontrar o toolbar
+    const selectors = [
+      '#composer-textarea .flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0',
+      '#composer-textarea .max-w-full > .items-center > .items-center',
+      '#composer-textarea .items-center .items-center',
+      '#composer-textarea .flex.flex-row.items-center',
+      '#composer-textarea .flex.items-center.gap-2',
+      '#composer-textarea [class*="flex"][class*="items-center"]',
+      '#composer-textarea .icon-wrapper',
+      composer.querySelector('.flex.flex-row.gap-2.items-center'),
+      composer.querySelector('.flex.items-center'),
+      composer.querySelector('[class*="icon-wrapper"]')?.parentElement
+    ].filter(Boolean);
+    
+    for (const selector of selectors) {
+      const toolbar = typeof selector === 'string' 
+        ? document.querySelector(selector)
+        : selector;
+      
+      if (toolbar && toolbar.offsetParent !== null) {
+        log('✅ Toolbar encontrado:', selector);
+        return toolbar;
+      }
+    }
+    
+    log('⚠️ Toolbar não encontrado com nenhum seletor');
+    return null;
   };
 
-  const findComposer = () => document.getElementById('composer-textarea');
+  const findComposer = () => {
+    const composer = document.getElementById('composer-textarea');
+    if (!composer) {
+      // Tenta encontrar por outros seletores
+      const alternatives = [
+        document.querySelector('[id*="composer"]'),
+        document.querySelector('[class*="composer"]'),
+        document.querySelector('textarea[placeholder*="message" i]')?.parentElement,
+        document.querySelector('textarea[placeholder*="mensagem" i]')?.parentElement
+      ];
+      return alternatives.find(el => el) || null;
+    }
+    return composer;
+  };
+  
+  // Função de debug para ajudar a identificar problemas
+  const debugDOM = () => {
+    log('🔍 DEBUG: Analisando DOM...');
+    const composer = findComposer();
+    log('Composer encontrado:', !!composer, composer?.id || composer?.className);
+    
+    if (composer) {
+      const toolbars = Array.from(composer.querySelectorAll('[class*="flex"][class*="items-center"]'));
+      log(`Toolbars encontrados: ${toolbars.length}`);
+      toolbars.forEach((tb, i) => {
+        log(`  Toolbar ${i + 1}:`, {
+          visible: tb.offsetParent !== null,
+          classes: tb.className,
+          children: tb.children.length,
+          hasIconWrappers: tb.querySelectorAll('.icon-wrapper').length
+        });
+      });
+    }
+  };
 
   const findFileInput = () => {
     const composer = findComposer();
@@ -228,12 +288,21 @@
 
   // --- Botão + Gravação (SVG embutido e posicionado ao lado do ícone alvo)
   function createRecorderUI() {
-    if (document.getElementById('zaptos-rec-btn')) return;
+    if (document.getElementById('zaptos-rec-btn')) {
+      log('⏭️ Botão já existe, pulando criação');
+      return;
+    }
 
-    // Verifica se o container específico está ativo/visível
-    const targetContainer = document.querySelector('div[data-v-4094da08].flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0');
-    if (!targetContainer || targetContainer.style.display === 'none' || targetContainer.offsetParent === null) {
-      return; // Não cria o botão se o container não estiver ativo
+    const composer = findComposer();
+    if (!composer) {
+      log('⚠️ Composer não encontrado, aguardando...');
+      return;
+    }
+
+    // Verifica se o composer está visível
+    if (composer.style.display === 'none' || composer.offsetParent === null) {
+      log('⚠️ Composer não está visível');
+      return;
     }
 
     // SVG do microfone (usa currentColor, viewBox 24)
@@ -270,11 +339,58 @@
     };
 
     const toolbar = findIconToolbar();
-    if (!toolbar) return;
+    if (!toolbar) {
+      log('⚠️ Toolbar não encontrado, tentando novamente...');
+      return;
+    }
 
-    // 🎯 ENCAIXE EXATO: após o ícone com classes "w-4 h-4 cursor-pointer text-gray-500 hover:text-red-500"
+    log('🔍 Procurando local para inserir botão...');
+    
+    // Múltiplas estratégias para encontrar onde inserir o botão
+    let targetWrapper = null;
+    
+    // Estratégia 1: Procurar pelo SVG específico (original)
     const targetSvg = toolbar.querySelector('.icon-wrapper svg.w-4.h-4.cursor-pointer.text-gray-500.hover\\:text-red-500');
-    const targetWrapper = targetSvg ? targetSvg.closest('.icon-wrapper') : null;
+    if (targetSvg) {
+      targetWrapper = targetSvg.closest('.icon-wrapper');
+      log('✅ Encontrado pelo SVG específico');
+    }
+    
+    // Estratégia 2: Procurar por qualquer icon-wrapper visível
+    if (!targetWrapper) {
+      const iconWrappers = Array.from(toolbar.querySelectorAll('.icon-wrapper'));
+      const visibleWrapper = iconWrappers.find(w => 
+        w.offsetParent !== null && 
+        w.style.display !== 'none' &&
+        w.querySelector('svg')
+      );
+      if (visibleWrapper) {
+        targetWrapper = visibleWrapper;
+        log('✅ Encontrado pelo primeiro icon-wrapper visível');
+      }
+    }
+    
+    // Estratégia 3: Procurar por botões ou SVGs dentro do toolbar
+    if (!targetWrapper) {
+      const buttons = Array.from(toolbar.querySelectorAll('button, [role="button"]'));
+      const visibleButton = buttons.find(b => b.offsetParent !== null && b.style.display !== 'none');
+      if (visibleButton) {
+        targetWrapper = visibleButton.closest('.icon-wrapper') || visibleButton.parentElement;
+        log('✅ Encontrado por botão visível');
+      }
+    }
+    
+    // Estratégia 4: Usar o último elemento filho visível
+    if (!targetWrapper) {
+      const children = Array.from(toolbar.children);
+      const lastVisible = children.reverse().find(child => 
+        child.offsetParent !== null && child.style.display !== 'none'
+      );
+      if (lastVisible) {
+        targetWrapper = lastVisible;
+        log('✅ Encontrado pelo último elemento visível');
+      }
+    }
 
     // Wrapper igual aos demais
     const micWrapper = document.createElement('div');
@@ -310,15 +426,31 @@
 
     micWrapper.appendChild(btn);
 
-    // Inserção: exatamente à direita do targetWrapper
+    // Inserção: exatamente à direita do targetWrapper ou ao final da toolbar
     if (targetWrapper && targetWrapper.parentNode) {
       targetWrapper.parentNode.insertBefore(micWrapper, targetWrapper.nextSibling);
-      log('✅ Microfone inserido após o ícone alvo (hover:text-red-500).');
+      log('✅ Microfone inserido após o elemento alvo.');
     } else {
       // fallback: adiciona ao fim da toolbar
       toolbar.appendChild(micWrapper);
-      log('⚠️ Ícone alvo não encontrado — microfone adicionado ao final da toolbar.');
+      log('⚠️ Elemento alvo não encontrado — microfone adicionado ao final da toolbar.');
     }
+    
+    // Garante que o botão está visível
+    if (micWrapper.offsetParent === null) {
+      log('⚠️ Botão criado mas não está visível, verificando CSS...');
+      micWrapper.style.display = 'inline-flex';
+    }
+    
+    log('✅ Botão de gravação criado e inserido!');
+    
+    // Debug: verifica se está realmente visível
+    setTimeout(() => {
+      if (micWrapper.offsetParent === null) {
+        log('⚠️ ATENÇÃO: Botão criado mas ainda não visível após 100ms');
+        debugDOM();
+      }
+    }, 100);
 
     // --- Estado e gravação
     let ac = null, source = null, proc = null, stream = null;
@@ -487,14 +619,42 @@
     const lameOK = await loadLame();
     log(lameOK ? '✅ MP3 encoder carregado' : '⚠️ Encoder MP3 indisponível — fallback para WAV');
 
-    const tryInject = () => { try { createRecorderUI(); } catch (e) { log('❌ Erro UI:', e); } };
-    const tryPlayers = (node) => { try { enhanceAttachmentPlayers(node || document); } catch (e) { log('❌ Erro players:', e); } };
+    const tryInject = () => { 
+      try { 
+        createRecorderUI(); 
+      } catch (e) { 
+        log('❌ Erro UI:', e); 
+        console.error(e);
+      } 
+    };
+    const tryPlayers = (node) => { 
+      try { 
+        enhanceAttachmentPlayers(node || document); 
+      } catch (e) { 
+        log('❌ Erro players:', e); 
+      } 
+    };
 
+    // Tenta injetar imediatamente
     tryInject();
     tryPlayers();
 
-    setTimeout(tryInject, 500);
-    setTimeout(tryInject, 3000);
+    // Debug no console se solicitado (apenas em desenvolvimento)
+    if (window.location.search.includes('zaptos-debug')) {
+      debugDOM();
+    }
+
+    // Tenta novamente após delays (o DOM pode ainda estar carregando)
+    setTimeout(() => { tryInject(); }, 500);
+    setTimeout(() => { tryInject(); }, 1000);
+    setTimeout(() => { tryInject(); }, 2000);
+    setTimeout(() => { tryInject(); }, 3000);
+    setTimeout(() => { 
+      tryInject(); 
+      if (window.location.search.includes('zaptos-debug')) {
+        debugDOM();
+      }
+    }, 5000);
 
     const mo = new MutationObserver((muts) => {
       let uiCheckNeeded = false;
@@ -505,14 +665,24 @@
         }
       }
       
-      // Verifica se o container ainda está ativo
-      const targetContainer = document.querySelector('div[data-v-4094da08].flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0');
+      // Verifica se o composer ainda está visível
+      const composer = findComposer();
       const recBtn = document.getElementById('zaptos-rec-btn');
       
-      if (recBtn && (!targetContainer || targetContainer.style.display === 'none' || targetContainer.offsetParent === null)) {
-        // Remove o botão se o container não estiver ativo
-        recBtn.closest('.icon-wrapper')?.remove();
-        log('🗑️ Botão removido - container não ativo');
+      if (recBtn) {
+        // Remove o botão se o composer não estiver visível
+        if (!composer || composer.style.display === 'none' || composer.offsetParent === null) {
+          recBtn.closest('.icon-wrapper')?.remove();
+          log('🗑️ Botão removido - composer não visível');
+        }
+        // Remove se o botão não estiver em um toolbar válido
+        else {
+          const toolbar = findIconToolbar();
+          if (!toolbar || !toolbar.contains(recBtn)) {
+            recBtn.closest('.icon-wrapper')?.remove();
+            log('🗑️ Botão removido - não está em toolbar válido');
+          }
+        }
       }
       
       if (uiCheckNeeded && !recBtn) {
@@ -522,6 +692,6 @@
 
     mo.observe(document.documentElement, { childList: true, subtree: true });
 
-    log('🎯 Zaptos v4.5 ativo!');
+    log('🎯 Zaptos v4.6 ativo!');
   })();
 })();
