@@ -1,13 +1,13 @@
 /*!
- * Zaptos GHL Media Tools - Versão 4.6 (Melhorias na detecção de toolbar e seletores mais robustos)
+ * Zaptos GHL Media Tools - Versão 4.7 (Botão aparece apenas quando chat está expandido)
  * Copyright (c) 2025 Zaptos Company
  * Licensed under the Apache License, Version 2.0
  */
 (function () {
   if (window.__ZAPTOS_GHL_MEDIA_MP3__) return;
-  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.6-robust-selectors';
+  window.__ZAPTOS_GHL_MEDIA_MP3__ = 'v4.7-expanded-only';
 
-  const log = (...a) => console.log('[Zaptos v4.6]', ...a);
+  const log = (...a) => console.log('[Zaptos v4.7]', ...a);
   const preferFormat = 'mp3';
 
   // --- Loader do lamejs
@@ -133,11 +133,80 @@
     return composer;
   };
   
+  // Verifica se o chat está expandido (modo SMS/composer completo)
+  const isChatExpanded = () => {
+    const composer = findComposer();
+    if (!composer) return false;
+    
+    // Verifica se o composer está visível
+    if (composer.style.display === 'none' || composer.offsetParent === null) {
+      return false;
+    }
+    
+    // Verifica se há uma toolbar completa com múltiplos ícones (indicando modo expandido)
+    const toolbar = findIconToolbar();
+    if (!toolbar || toolbar.offsetParent === null || toolbar.style.display === 'none') {
+      return false;
+    }
+    
+    // Conta quantos ícones/botões visíveis existem na toolbar
+    const iconWrappers = Array.from(toolbar.querySelectorAll('.icon-wrapper, button, [role="button"]'));
+    const visibleIcons = iconWrappers.filter(el => 
+      el.offsetParent !== null && 
+      el.style.display !== 'none' &&
+      (el.querySelector('svg') || el.textContent.trim())
+    );
+    
+    // Se há 5 ou mais ícones visíveis, provavelmente está no modo expandido
+    // (no modo colapsado geralmente há apenas 1-2 ícones)
+    const hasMultipleIcons = visibleIcons.length >= 5;
+    
+    // Verifica se há um header "SMS" ou título visível acima do composer
+    const composerParent = composer.closest('[class*="panel"], [class*="modal"], [class*="drawer"], [class*="container"]');
+    const hasSMSHeader = composerParent && (
+      composerParent.textContent.includes('SMS') ||
+      composerParent.querySelector('[class*="header"], [class*="title"], h1, h2, h3')
+    );
+    
+    // Verifica se há um textarea com múltiplas linhas ou altura maior
+    const textarea = composer.querySelector('textarea');
+    const isTextareaExpanded = textarea && (
+      textarea.offsetHeight > 80 ||
+      parseInt(textarea.getAttribute('rows') || '1') > 2 ||
+      textarea.style.minHeight && parseInt(textarea.style.minHeight) > 80
+    );
+    
+    // Verifica se há um container com estrutura de modal/panel expandido
+    const hasExpandedStructure = composerParent && (
+      composerParent.offsetHeight > 200 ||
+      composerParent.classList.toString().match(/expand|modal|panel|drawer/i)
+    );
+    
+    // Está expandido se tem múltiplos ícones OU (header SMS E estrutura expandida) OU textarea grande
+    const isExpanded = hasMultipleIcons || 
+                      (hasSMSHeader && hasExpandedStructure) || 
+                      (isTextareaExpanded && hasMultipleIcons);
+    
+    if (window.location.search.includes('zaptos-debug')) {
+      log('🔍 isChatExpanded:', {
+        hasMultipleIcons,
+        visibleIconsCount: visibleIcons.length,
+        hasSMSHeader,
+        isTextareaExpanded,
+        hasExpandedStructure,
+        isExpanded
+      });
+    }
+    
+    return isExpanded;
+  };
+
   // Função de debug para ajudar a identificar problemas
   const debugDOM = () => {
     log('🔍 DEBUG: Analisando DOM...');
     const composer = findComposer();
     log('Composer encontrado:', !!composer, composer?.id || composer?.className);
+    log('Chat expandido:', isChatExpanded());
     
     if (composer) {
       const toolbars = Array.from(composer.querySelectorAll('[class*="flex"][class*="items-center"]'));
@@ -288,8 +357,23 @@
 
   // --- Botão + Gravação (SVG embutido e posicionado ao lado do ícone alvo)
   function createRecorderUI() {
-    if (document.getElementById('zaptos-rec-btn')) {
-      log('⏭️ Botão já existe, pulando criação');
+    const existingBtn = document.getElementById('zaptos-rec-btn');
+    
+    // Verifica se o chat está expandido
+    const expanded = isChatExpanded();
+    
+    // Se não está expandido, remove o botão se existir
+    if (!expanded) {
+      if (existingBtn) {
+        log('🗑️ Chat não expandido - removendo botão');
+        existingBtn.closest('.icon-wrapper')?.remove();
+      }
+      return;
+    }
+
+    // Se já existe e está expandido, não precisa recriar
+    if (existingBtn) {
+      log('⏭️ Botão já existe e chat está expandido');
       return;
     }
 
@@ -304,6 +388,8 @@
       log('⚠️ Composer não está visível');
       return;
     }
+    
+    log('✅ Chat expandido detectado - criando botão de gravação');
 
     // SVG do microfone (usa currentColor, viewBox 24)
     const MIC_SVG = `
@@ -665,13 +751,19 @@
         }
       }
       
-      // Verifica se o composer ainda está visível
+      // Verifica se o chat ainda está expandido
       const composer = findComposer();
       const recBtn = document.getElementById('zaptos-rec-btn');
+      const isExpanded = isChatExpanded();
       
       if (recBtn) {
-        // Remove o botão se o composer não estiver visível
-        if (!composer || composer.style.display === 'none' || composer.offsetParent === null) {
+        // Remove o botão se o chat não estiver mais expandido
+        if (!isExpanded) {
+          recBtn.closest('.icon-wrapper')?.remove();
+          log('🗑️ Botão removido - chat não está mais expandido');
+        }
+        // Remove se o composer não estiver visível
+        else if (!composer || composer.style.display === 'none' || composer.offsetParent === null) {
           recBtn.closest('.icon-wrapper')?.remove();
           log('🗑️ Botão removido - composer não visível');
         }
@@ -685,13 +777,14 @@
         }
       }
       
-      if (uiCheckNeeded && !recBtn) {
+      // Se o chat está expandido e não tem botão, tenta criar
+      if (isExpanded && !recBtn && uiCheckNeeded) {
         setTimeout(tryInject, 100);
       }
     });
 
     mo.observe(document.documentElement, { childList: true, subtree: true });
 
-    log('🎯 Zaptos v4.6 ativo!');
+    log('🎯 Zaptos v4.7 ativo! (Botão aparece apenas quando chat está expandido)');
   })();
 })();
