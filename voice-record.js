@@ -89,18 +89,23 @@
       return null;
     }
     
-    // Múltiplos seletores para encontrar o toolbar
+    // Prioriza o toolbar expandido (com data-v-1f2e270e)
+    // Este é o toolbar que aparece quando o chat está expandido
+    const expandedToolbar = composer.querySelector('div[data-v-1f2e270e].flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0');
+    if (expandedToolbar && expandedToolbar.offsetParent !== null) {
+      log('✅ Toolbar expandido encontrado');
+      return expandedToolbar;
+    }
+    
+    // Fallback: outros seletores para toolbar
     const selectors = [
       '#composer-textarea .flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0',
       '#composer-textarea .max-w-full > .items-center > .items-center',
       '#composer-textarea .items-center .items-center',
       '#composer-textarea .flex.flex-row.items-center',
       '#composer-textarea .flex.items-center.gap-2',
-      '#composer-textarea [class*="flex"][class*="items-center"]',
-      '#composer-textarea .icon-wrapper',
       composer.querySelector('.flex.flex-row.gap-2.items-center'),
-      composer.querySelector('.flex.items-center'),
-      composer.querySelector('[class*="icon-wrapper"]')?.parentElement
+      composer.querySelector('.flex.items-center')
     ].filter(Boolean);
     
     for (const selector of selectors) {
@@ -109,7 +114,7 @@
         : selector;
       
       if (toolbar && toolbar.offsetParent !== null) {
-        log('✅ Toolbar encontrado:', selector);
+        log('✅ Toolbar encontrado (fallback):', selector);
         return toolbar;
       }
     }
@@ -143,57 +148,46 @@
       return false;
     }
     
-    // Verifica se há uma toolbar completa com múltiplos ícones (indicando modo expandido)
-    const toolbar = findIconToolbar();
-    if (!toolbar || toolbar.offsetParent === null || toolbar.style.display === 'none') {
-      return false;
-    }
+    // 🎯 INDICADOR PRINCIPAL: Verifica se há o header "SMS" visível
+    // No modo expandido, sempre tem um elemento com texto "SMS"
+    const hasSMSHeader = composer.querySelector('span.text-\\[13px\\].font-medium.text-gray-700') ||
+                         Array.from(composer.querySelectorAll('span, div')).some(el => 
+                           el.textContent.trim() === 'SMS' && 
+                           el.offsetParent !== null
+                         );
     
-    // Conta quantos ícones/botões visíveis existem na toolbar
-    const iconWrappers = Array.from(toolbar.querySelectorAll('.icon-wrapper, button, [role="button"]'));
-    const visibleIcons = iconWrappers.filter(el => 
-      el.offsetParent !== null && 
-      el.style.display !== 'none' &&
-      (el.querySelector('svg') || el.textContent.trim())
-    );
+    // 🎯 INDICADOR SECUNDÁRIO: Verifica se há o container da toolbar expandida
+    // No modo expandido, tem o container com data-v-1f2e270e e classes específicas
+    const expandedToolbar = composer.querySelector('div[data-v-1f2e270e].flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0');
+    const hasExpandedToolbar = expandedToolbar && expandedToolbar.offsetParent !== null;
     
-    // Se há 5 ou mais ícones visíveis, provavelmente está no modo expandido
-    // (no modo colapsado geralmente há apenas 1-2 ícones)
-    const hasMultipleIcons = visibleIcons.length >= 5;
-    
-    // Verifica se há um header "SMS" ou título visível acima do composer
-    const composerParent = composer.closest('[class*="panel"], [class*="modal"], [class*="drawer"], [class*="container"]');
-    const hasSMSHeader = composerParent && (
-      composerParent.textContent.includes('SMS') ||
-      composerParent.querySelector('[class*="header"], [class*="title"], h1, h2, h3')
-    );
-    
-    // Verifica se há um textarea com múltiplas linhas ou altura maior
+    // 🎯 INDICADOR TERCIÁRIO: Verifica se há textarea com altura grande
+    // No modo expandido, o textarea tem min-height: 120px
     const textarea = composer.querySelector('textarea');
     const isTextareaExpanded = textarea && (
-      textarea.offsetHeight > 80 ||
-      parseInt(textarea.getAttribute('rows') || '1') > 2 ||
-      textarea.style.minHeight && parseInt(textarea.style.minHeight) > 80
+      textarea.style.minHeight && parseInt(textarea.style.minHeight) >= 120 ||
+      textarea.offsetHeight >= 120
     );
     
-    // Verifica se há um container com estrutura de modal/panel expandido
-    const hasExpandedStructure = composerParent && (
-      composerParent.offsetHeight > 200 ||
-      composerParent.classList.toString().match(/expand|modal|panel|drawer/i)
-    );
+    // 🎯 INDICADOR ADICIONAL: Verifica se há múltiplos icon-wrapper no toolbar expandido
+    let hasMultipleIcons = false;
+    if (hasExpandedToolbar) {
+      const iconWrappers = expandedToolbar.querySelectorAll('.icon-wrapper');
+      hasMultipleIcons = iconWrappers.length >= 5;
+    }
     
-    // Está expandido se tem múltiplos ícones OU (header SMS E estrutura expandida) OU textarea grande
-    const isExpanded = hasMultipleIcons || 
-                      (hasSMSHeader && hasExpandedStructure) || 
-                      (isTextareaExpanded && hasMultipleIcons);
+    // Está expandido se tem header SMS OU (toolbar expandida com múltiplos ícones) OU textarea grande
+    // Prioriza o header SMS como indicador mais confiável
+    const isExpanded = hasSMSHeader || 
+                      (hasExpandedToolbar && hasMultipleIcons) || 
+                      isTextareaExpanded;
     
     if (window.location.search.includes('zaptos-debug')) {
       log('🔍 isChatExpanded:', {
-        hasMultipleIcons,
-        visibleIconsCount: visibleIcons.length,
         hasSMSHeader,
+        hasExpandedToolbar: !!hasExpandedToolbar,
+        hasMultipleIcons,
         isTextareaExpanded,
-        hasExpandedStructure,
         isExpanded
       });
     }
@@ -371,10 +365,19 @@
       return;
     }
 
-    // Se já existe e está expandido, não precisa recriar
+    // Se já existe, verifica se está no lugar correto (toolbar expandida)
     if (existingBtn) {
-      log('⏭️ Botão já existe e chat está expandido');
-      return;
+      const expandedToolbar = findIconToolbar();
+      // Se o botão está dentro do toolbar expandido correto, está OK
+      if (expandedToolbar && expandedToolbar.contains(existingBtn)) {
+        log('⏭️ Botão já existe e está no toolbar correto');
+        return;
+      } else {
+        // Botão existe mas não está no lugar certo, remove e recria
+        log('⚠️ Botão existe mas não está no toolbar correto, removendo...');
+        existingBtn.closest('.icon-wrapper')?.remove();
+        // Continua para criar o botão no lugar certo
+      }
     }
 
     const composer = findComposer();
@@ -429,8 +432,24 @@
       log('⚠️ Toolbar não encontrado, tentando novamente...');
       return;
     }
+    
+    // Verifica se é realmente o toolbar expandido (com data-v-1f2e270e)
+    // No modo expandido, o toolbar tem o atributo data-v-1f2e270e
+    const hasExpandedAttr = toolbar.hasAttribute('data-v-1f2e270e');
+    const hasExpandedClasses = toolbar.classList.contains('flex') && 
+                               toolbar.classList.contains('flex-row') &&
+                               toolbar.classList.contains('gap-2') &&
+                               toolbar.classList.contains('items-center');
+    
+    // Só insere se tiver o atributo data-v-1f2e270e (indicador do toolbar expandido)
+    if (!hasExpandedAttr) {
+      log('⚠️ Toolbar encontrado não tem data-v-1f2e270e (não é toolbar expandido)');
+      return;
+    }
+    
+    log('✅ Toolbar expandido confirmado (data-v-1f2e270e encontrado)');
 
-    log('🔍 Procurando local para inserir botão...');
+    log('🔍 Procurando local para inserir botão no toolbar expandido...');
     
     // Múltiplas estratégias para encontrar onde inserir o botão
     let targetWrapper = null;
@@ -751,34 +770,28 @@
         }
       }
       
-      // Verifica se o chat ainda está expandido
+      // Verifica se o chat ainda está expandido (sempre verifica, mesmo sem mudanças)
       const composer = findComposer();
       const recBtn = document.getElementById('zaptos-rec-btn');
       const isExpanded = isChatExpanded();
       
       if (recBtn) {
-        // Remove o botão se o chat não estiver mais expandido
-        if (!isExpanded) {
+        // Verifica se o botão está dentro do toolbar expandido correto
+        const expandedToolbar = composer?.querySelector('div[data-v-1f2e270e].flex.flex-row.gap-2.items-center.pl-2.rounded-md.flex-1.min-w-0');
+        const isInExpandedToolbar = expandedToolbar && expandedToolbar.contains(recBtn);
+        
+        // Remove o botão se:
+        // 1. Chat não está expandido
+        // 2. Não está no toolbar expandido correto
+        // 3. Composer não está visível
+        if (!isExpanded || !isInExpandedToolbar || !composer || composer.style.display === 'none' || composer.offsetParent === null) {
           recBtn.closest('.icon-wrapper')?.remove();
-          log('🗑️ Botão removido - chat não está mais expandido');
-        }
-        // Remove se o composer não estiver visível
-        else if (!composer || composer.style.display === 'none' || composer.offsetParent === null) {
-          recBtn.closest('.icon-wrapper')?.remove();
-          log('🗑️ Botão removido - composer não visível');
-        }
-        // Remove se o botão não estiver em um toolbar válido
-        else {
-          const toolbar = findIconToolbar();
-          if (!toolbar || !toolbar.contains(recBtn)) {
-            recBtn.closest('.icon-wrapper')?.remove();
-            log('🗑️ Botão removido - não está em toolbar válido');
-          }
+          log('🗑️ Botão removido - chat não expandido ou posição incorreta');
         }
       }
       
       // Se o chat está expandido e não tem botão, tenta criar
-      if (isExpanded && !recBtn && uiCheckNeeded) {
+      if (isExpanded && !recBtn) {
         setTimeout(tryInject, 100);
       }
     });
